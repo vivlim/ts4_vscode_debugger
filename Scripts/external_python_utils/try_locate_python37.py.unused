@@ -1,0 +1,29 @@
+# SPDX-SnippetCopyrightText: 2025 viviridian
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+import os,winreg
+
+# i didn't end up actually using this because winreg isn't available in ts4, but i don't want to throw it out
+
+def try_get_python_from_registry(key, sub_key):
+    try:
+        k = winreg.OpenKey(key, sub_key)
+        try:
+            result = winreg.QueryValueEx(k, "ExecutablePath")
+            return result[0]
+        finally:
+            winreg.CloseKey(k)
+    except:
+        return None
+
+# keys that may contain a python path - https://stackoverflow.com/a/648552
+for key, sub_key in [
+    (winreg.HKEY_LOCAL_MACHINE, 'Software\\Python\\PythonCore\\3.7\\InstallPath'),
+    (winreg.HKEY_CURRENT_USER, 'Software\\Python\\PythonCore\\3.7\\InstallPath'),
+    (winreg.HKEY_LOCAL_MACHINE, 'Software\\Wow6432Node\\Python\\PythonCore\\3.7\\InstallPath'),
+]:
+    pp = try_get_python_from_registry(key, sub_key)
+    if pp and os.path.exists(pp):
+        print(pp)
+
+raise Exception("Did not find python 3.7 install in registry")

@@ -1,0 +1,19 @@
+{
+  "configurations": [
+    {
+      "name": "Attach",
+      "type": "debugpy",
+      "request": "attach",
+      "logToFile": true,
+      "connect": { "host": "localhost", "port": 5678 },
+      "pathMappings": []
+    },
+    {
+      "name": "Current file",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal"
+    }
+  ]
+}
