@@ -9,7 +9,7 @@ import build_tools.compile;
 from pathlib import Path
 from zipfile import PyZipFile, ZIP_DEFLATED
 
-entry_filename = 'world_inspector.py'
+entry_filename = 'inspector_gadget.py'
 
 dirs_to_not_allow_emptying = ['Scripts', '']
 
@@ -36,9 +36,6 @@ def stage_wanted_files(source: Path):
     wanted_files = []
     wanted_files.extend(collect_wanted_sources(source))
     
-    # got a bit more specific than this because we don't need all of codemirror. keeping the comprehension around as an example
-    #wanted_files.extend([f.relative_to(source) for f in source.glob('vivlib/codemirror*/**/*') if f.is_file()])
-
     for f in wanted_files:
         print(f'staging {f}')
         f_source = source.joinpath(f)
@@ -58,10 +55,6 @@ def get_short_commit():
         short_hash = out.decode('utf-8').strip()
         if '\n' in short_hash:
             return 'err'
-
-        dirty_cmd = subprocess.run(['git', 'status', '--porcelain'])
-        if dirty_cmd.returncode != 1:
-            short_hash += '-dev'
         return short_hash
     except:
         return 'unknownversion'
@@ -76,7 +69,7 @@ if __name__ == '__main__':
     build_tools.compile.compile_scripts_with_python(stage, workdir, '**/*.py', '3.7')
 
     outdir = get_dir('out')
-    zip_path = outdir.joinpath(f'viviridian_monitor-{get_short_commit()}.ts4script')
+    zip_path = outdir.joinpath(f'viviridian_inspector_gadget-{get_short_commit()}.ts4script')
 
     # final check to make sure nothing unwanted snuck into stage
     unwanted_globs = ['generated_build_script.*']
