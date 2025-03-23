@@ -1,7 +1,5 @@
 # patch over vis text because it crashes.
 import sims4
-from vivlib2.idempotent_exec import idempotent_exec
-from vivlib2.messagebox import CatchAndMsgBox
 import vivlib2.main_thread
 import pathlib,sys
 
@@ -14,33 +12,38 @@ if pathlib.Path(sys.executable).name.casefold() == "TS4_x64.exe".casefold():
 
 @vivlib2.log_exception_and_raise
 def block_debugvis_text():
-    import debugvis,sims4,vivlib2.debug_vis
+    import debugvis,sims4,vivlib2
     orig_get_layer = debugvis.get_layer
     class WrappedLayer:
         def __init__(self, l, name=None):
             self.l = l
             self.name = name
 
+        @vivlib2.log_exception_and_raise
         def open(self):
-            self.l.open()
+            return self.l.open()
+        @vivlib2.log_exception_and_raise
         def clear(self):
-            self.l.clear()
+            return self.l.clear()
+        @vivlib2.log_exception_and_raise
         def commit(self):
-            self.l.commit()
+            return self.l.commit()
+        @vivlib2.log_exception_and_raise
         def add_segment(self, a, b, color):
-            self.l.add_segment(a, b, color)
+            return self.l.add_segment(a, b, color)
+        @vivlib2.log_exception_and_raise
         def add_point(self, a, b, color):
-            self.l.add_point(a, b, color)  
+            return self.l.add_point(a, b, color)  
         def add_text_screen(self, *args, **kwargs):
             pass
         def add_text_world(self, *args, **kwargs):
             pass
         def add_text_object(self, *args, **kwargs):
             pass
-        def _exec_client_cmd(self):
+        def _exec_client_cmd(self, cmd):
           import vivlib2, vivlib2.main_thread
           @vivlib2.log_exception_and_raise
-          def _exec_on_main_thread(self, cmd):
+          def _exec_on_main_thread(self):
               import services
               client = services.get_first_client()
               sims4.commands.client_cheat(cmd, client.id)
@@ -66,13 +69,23 @@ def block_debugvis_text():
     debugvis.get_layer = get_wrapped_layer
 
     OrigContext = debugvis.Context
-    wrapped_layers = vivlib2.debug_vis.wrapped_layers()
-    class WrappedContext(OrigContext):
-        def __init__(self, name, preserve=False, color=sims4.color.Color.WHITE, altitude=0.05, zone_id=None, routing_surface=None):
-            OrigContext.__init__(self, name, preserve, color, altitude, zone_id, routing_surface)
-            #self.layer = WrappedLayer(self.layer, name)
-            wrapped_layers[name] = True
-    debugvis.Context = WrappedContext
+    orig_context_init = OrigContext.__init__
+    import vivlib2.debug_vis_wrapper
+    wrapped_layers = vivlib2.debug_vis_wrapper.wrapped_layers()
+    @vivlib2.log_exception_and_raise
+    def wrapped_init(*args, **kwargs):
+        orig_context_init(*args, **kwargs)
+        name = args[1]
+        wrapped_layers[name] = True
+    debugvis.Context.__init__ = wrapped_init
+
+
+    # class Context(OrigContext):
+    #     def __init__(self, name, preserve=False, color=sims4.color.Color.WHITE, altitude=0.05, zone_id=None, routing_surface=None):
+    #         OrigContext.__init__(self, name, preserve, color, altitude, zone_id, routing_surface)
+    #         #self.layer = WrappedLayer(self.layer, name)
+    #         wrapped_layers[name] = True
+    # debugvis.Context = Context
 
     def _undo():
         debugvis.get_layer = orig_get_layer

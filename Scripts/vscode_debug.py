@@ -47,6 +47,7 @@ def start_vscode_debugger(_connection=None):
         import debugpy
         output("imported debugpy")
         # we need to tell debugpy what python.exe to use to run the debug server - otherwise it will try to use TS4_x64.exe which will fail
+        debugpy.log_to(package_dir.packages_path)
         debugpy.configure({
             "python": package_dir.external_python_path, # PackageDir will attempt to detect python's location, so prefer that
         })

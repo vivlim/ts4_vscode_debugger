@@ -61,7 +61,7 @@ class PackageDir:
                 self.logger(f'found python at {pp} (via powershell + registry)')
                 return pp
         
-        raise Exception(f"Couldn't find a python 3.7 install. Please install 3.7.9 if you don't have it, or edit the script to hardcode it.")
+        raise Exception(f"Couldn't find a python 3.7 install. Please install 3.7.0 if you don't have it, or edit the script to hardcode it.")
 
     def ensure_in_search_path(self):
         import sys
