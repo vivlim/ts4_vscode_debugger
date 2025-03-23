@@ -1,3 +1,4 @@
+import vivlib2
 import queue
 
 _func_queue = None
@@ -17,14 +18,14 @@ def throw_if_not_main_thread():
     if mt != thist:
         raise Exception(f'Current thread {thist} is not main thread {mt}')
 
+@vivlib2.lazy_global
+def _func_queue():
+    import queue
+    return queue.Queue(64)
+
 class MainThreadDispatcher:
     def __init__(self):
-        global _func_queue
-        if _func_queue == None:
-            throw_if_not_main_thread()
-            _func_queue = queue.Queue(64)
-
-        self._func_queue = _func_queue
+        self._func_queue = _func_queue()
     
     def run_on_main_thread(self, func):
         if check_on_main_thread():
@@ -51,3 +52,15 @@ class MainThreadDispatcher:
             self._on_tick()
         
         return on_tick_wrapper
+
+
+@vivlib2.lazy_global
+def _wrap_on_tick():
+    throw_if_not_main_thread()
+    import pathlib,sys
+    if pathlib.Path(sys.executable).name.casefold() == "TS4_x64.exe".casefold():
+        dispatcher = MainThreadDispatcher()
+        import sims4.core_services
+        sims4.core_services.on_tick = dispatcher.wrap_on_tick(sims4.core_services.on_tick)
+
+_wrap_on_tick()

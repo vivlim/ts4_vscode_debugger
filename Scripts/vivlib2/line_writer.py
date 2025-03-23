@@ -1,9 +1,5 @@
-# this is for the repl
-# import vivlib2.draw
-# vivlib2.draw.start_draw_pick_locations()
 from sims4.math import Vector3
 import typing
-p((Vector3(1, 0,0) + Vector3(0,1,1)))
 
 class XY(typing.NamedTuple):
     x: int
@@ -171,17 +167,3 @@ class LineWriter:
             start_vec3 = char_origin + (Vector3(s.start.x, s.start.y, 0) * self.scale)
             end_vec3 = char_origin + (Vector3(s.end.x, s.end.y, 0) * self.scale)
             drawlayer.add_segment_absolute(start_vec3, end_vec3)
-        
-
-def draw_pick_at_location(drawlayer, location):
-    def drawpick(layer):
-        from sims4.math import Vector3
-        arrow_start = location + Vector3(0, 2, 0)
-        layer.add_point(location)
-        layer.add_point(arrow_start)
-        layer.add_segment_absolute(location, arrow_start)
-        lw = LineWriter(arrow_start, 0.2, 'x{:.2f}\ny{:.2f}\nz{:.2f}'.format(location.x, location.y, location.z))
-        lw.write(layer)
-    drawlayer.draw_in_context(drawpick)
-
-vivlib2.draw.draw_pick_at_location=draw_pick_at_location

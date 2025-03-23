@@ -83,8 +83,16 @@ def get_last_pick_queue():
 
 # factor this out so it's easy to monkeypatch & iterate on visuals
 def draw_pick_at_location(drawlayer: DrawLayer, location):
+    import vivlib2.line_writer
+    
     def drawpick(layer):
+        from sims4.math import Vector3
+        arrow_start = location + Vector3(0, 2, 0)
         layer.add_point(location)
+        layer.add_point(arrow_start)
+        layer.add_segment_absolute(location, arrow_start)
+        lw = vivlib2.line_writer.LineWriter(arrow_start, 0.2, 'x{:.2f}\ny{:.2f}\nz{:.2f}'.format(location.x, location.y, location.z))
+        lw.write(layer)
     drawlayer.draw_in_context(drawpick)
 
 def start_draw_pick_locations():
@@ -93,7 +101,7 @@ def start_draw_pick_locations():
     pick_drawlayer = get_last_pick_location_drawlayer()
 
     import vivlib2
-    import vivlib.queues
+    import vivlib2.queues
 
     @vivlib2.log_exception
     def draw_pick_location_if_changed(pick_location):
@@ -105,14 +113,12 @@ def start_draw_pick_locations():
             lpl.y = pick_location.y
             lpl.z = pick_location.z
             draw_pick_at_location(pick_drawlayer, pick_location)
-    vivlib.queues.service_queue_on_thread(get_last_pick_queue(), draw_pick_location_if_changed)
+    vivlib2.queues.service_queue_on_thread(get_last_pick_queue(), draw_pick_location_if_changed)
 
     last_pick_queue = get_last_pick_queue()
     orig = world.pick_tests.PickTerrainTest.__call__
 
     def replacement_pick_terrain_test_call(*args, **kwargs):
-    #     if context['shift_held']:
-        #p(f"invoked: {self.terrain_location} {context.pick.location}\n")
         try:
             if 'context' in kwargs:
                 context = kwargs['context']
