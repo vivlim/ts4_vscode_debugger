@@ -49,7 +49,8 @@ import sims4.commands
 import sims4.log
 import sims4.math
 import sims4.reload
-logger = sims4.log.Logger('vdebugvis')
+import vivlib2
+logger = vivlib2.get_logger()
 with sims4.reload.protected(globals()):
     _social_layer_visualizers = {}
     _sim_layer_visualizers = {}
@@ -79,8 +80,28 @@ with sims4.reload.protected(globals()):
     _all_mood_visualization_enabled = set()
     _all_autonomy_timer_visualization_enabled = set()
 
+
+@vivlib2.lazy_global
+def wrapped_layers():
+    return {}
+
+def show_all_wrapped_layers():
+    import vivlib2, vivlib2.main_thread
+    log = vivlib2.get_logger()
+    wll = wrapped_layers()
+    for wlname in wll:
+        log.info(f"Enabling layer {wl}")
+        wl = wll[wlname]
+
+        wl.client_enable() # internally dispatches to main thread - safe to call from any thread
+
+@ClientAction('vdebugvis.logthrowtest')
+def log_throw_test(_connection=None):
+    raise Exception("Test that exceptions are caught and logged")
+
 @ClientAction('vdebugvis.test')
-def debugvis_test(name, _connection=None):
+def debugvis_test(_connection=None):
+    name="debugvis_test_layer"
     client = services.client_manager().get(_connection)
     sim = client.active_sim
     time = services.time_service().sim_now
@@ -136,9 +157,9 @@ def _start_visualizer(_connection, vis_name, container, handle, visualizer, laye
         return False
     if layer is None:
         layer = _create_layer(vis_name, handle)
-    sims4.commands.output('Added visualization: {0}'.format(layer), _connection)
+    logger.info('Added visualization: {0}'.format(layer))
     container[handle] = visualizer
-    sims4.commands.client_cheat('vdebugvis.layer.enable {0}'.format(layer), _connection)
+    sims4.commands.client_cheat('debugvis.layer.enable {0}'.format(layer), _connection)
     return True
 
 def _start_sim_visualizer(opt_sim, _connection, vis_name, container, visualizer_class):
@@ -162,8 +183,8 @@ def _stop_visualizer(_connection, vis_name, container, handle):
         del container[handle]
         with Context(visualizer.layer):
             pass
-        sims4.commands.output('Removed visualization: {0}'.format(visualizer.layer), _connection)
-        sims4.commands.client_cheat('vdebugvis.layer.disable {0}'.format(visualizer.layer), _connection)
+        logger.info('Removed visualization: {0}'.format(visualizer.layer))
+        sims4.commands.client_cheat('debugvis.layer.disable {0}'.format(visualizer.layer), _connection)
     return True
 
 def _stop_sim_visualizer(opt_sim:OptionalTargetParam, _connection, vis_name, container):
@@ -176,7 +197,7 @@ def _stop_sim_visualizer(opt_sim:OptionalTargetParam, _connection, vis_name, con
         return False
     handle = (sim.id, vis_name)
     if handle not in container:
-        sims4.commands.output('No visualizer for Sim {0:08x}'.format(sim.id), _connection)
+        logger.info('No visualizer for Sim {0:08x}'.format(sim.id))
         return False
     return _stop_visualizer(_connection, vis_name, container, handle)
 
@@ -188,14 +209,14 @@ def _stop_all_sim_visualizer(_connection, container):
 @ClientAction('vdebugvis.waypoints.start', command_type=sims4.commands.CommandType.Live)
 def debugvis_waypoints_start(_connection=None):
     routing.waypoints.waypoint_generator.enable_waypoint_visualization = True
-    sims4.commands.client_cheat('vdebugvis.layer.enable {}'.format(routing.waypoints.waypoint_generator.DEBUGVIS_WAYPOINT_LAYER_NAME), _connection)
-    sims4.commands.output('Waypoint Visualization Enabled', _connection)
+    sims4.commands.client_cheat('debugvis.layer.enable {}'.format(routing.waypoints.waypoint_generator.DEBUGVIS_WAYPOINT_LAYER_NAME), _connection)
+    logger.info('Waypoint Visualization Enabled')
 
 @ClientAction('vdebugvis.waypoints.stop', command_type=sims4.commands.CommandType.Live)
 def debugvis_waypoints_stop(_connection=None):
     routing.waypoints.waypoint_generator.enable_waypoint_visualization = False
-    sims4.commands.client_cheat('vdebugvis.layer.disable {}'.format(routing.waypoints.waypoint_generator.DEBUGVIS_WAYPOINT_LAYER_NAME), _connection)
-    sims4.commands.output('Waypoint Visualization Disabled', _connection)
+    sims4.commands.client_cheat('debugvis.layer.disable {}'.format(routing.waypoints.waypoint_generator.DEBUGVIS_WAYPOINT_LAYER_NAME), _connection)
+    logger.info('Waypoint Visualization Disabled')
 
 @ClientAction('vdebugvis.socials.start')
 def debugvis_socials_start(opt_sim:OptionalTargetParam=None, _connection=None):
@@ -242,8 +263,8 @@ def debugvis_simposition_start(opt_sim:OptionalTargetParam=None, _connection=Non
                     layer = '{0}_{1:08x}'.format('sim_pos', obj.id)
                     visualizer = SimPositionVisualizer(obj, layer)
                     _sim_layer_visualizers[obj.id] = visualizer
-                    sims4.commands.output('Added visualization: {0}'.format(layer), _connection)
-                    sims4.commands.client_cheat('vdebugvis.layer.enable {0}'.format(layer), _connection)
+                    logger.info('Added visualization: {0}'.format(layer))
+                    sims4.commands.client_cheat('debugvis.layer.enable {0}'.format(layer), _connection)
     elif not _start_sim_visualizer(opt_sim, _connection, 'sim_pos', _sim_layer_visualizers, SimPositionVisualizer):
         return 0
     return 1
@@ -254,8 +275,8 @@ def debugvis_simposition_stop(opt_sim:OptionalTargetParam=None, _connection=None
         while _sim_layer_visualizers:
             (_, visualizer) = _sim_layer_visualizers.popitem()
             visualizer.stop()
-            sims4.commands.output('Removed visualization: {0}'.format(visualizer.layer), _connection)
-            sims4.commands.client_cheat('vdebugvis.layer.disable {0}'.format(visualizer.layer), _connection)
+            logger.info('Removed visualization: {0}'.format(visualizer.layer))
+            sims4.commands.client_cheat('debugvis.layer.disable {0}'.format(visualizer.layer), _connection)
     elif not _stop_sim_visualizer(opt_sim, _connection, 'sim_pos', _sim_layer_visualizers):
         return 0
     return 1
@@ -320,14 +341,14 @@ def debugvis_sim_los_stop(opt_sim:OptionalTargetParam=None, _connection=None):
 def debugvis_spawn_points_start(_connection=None):
     commands = ['debug.validate_spawn_points']
     for command in commands:
-        sims4.commands.output('>|' + command, _connection)
+        logger.info('>|' + command)
         sims4.commands.execute(command, _connection)
     vis_name = 'spawn_points'
     handle = 0
     layer = _create_layer(vis_name, handle)
     visualizer = SpawnPointVisualizer(layer)
     for spawn_point_str in visualizer.get_spawn_point_string_gen():
-        sims4.commands.output(spawn_point_str, _connection)
+        logger.info(spawn_point_str)
     if not _start_visualizer(_connection, vis_name, _spawn_point_visualizers, handle, visualizer, layer=layer):
         return 0
     return 1
@@ -361,14 +382,14 @@ def debugvis_locators_start(_connection=None):
     handle = 0
     layer = _create_layer(LOCATOR_VIS_NAME, handle)
     visualizer = LocatorVisualizer(layer)
-    sims4.commands.output('Locator Visualization Enabled', _connection)
+    logger.info('Locator Visualization Enabled')
     if not _start_visualizer(_connection, LOCATOR_VIS_NAME, _locator_visualizers, handle, visualizer, layer=layer):
         return 0
     return 1
 
 @ClientAction('vdebugvis.locators.stop', command_type=sims4.commands.CommandType.Live)
 def debugvis_locators_stop(_connection=None):
-    sims4.commands.output('Locator Visualization Disabled', _connection)
+    logger.info('Locator Visualization Disabled')
     if not _stop_visualizer(_connection, LOCATOR_VIS_NAME, _locator_visualizers, 0):
         return 0
     return 1
@@ -380,14 +401,14 @@ def debugvis_dynamic_area_start(_connection=None):
     handle = 0
     layer = _create_layer(DYNAMIC_AREA_VIS_NAME, handle)
     visualizer = DynamicAreaVisualizer(layer)
-    sims4.commands.output('Dynamic Areas Visualization Enabled', _connection)
+    logger.info('Dynamic Areas Visualization Enabled')
     if not _start_visualizer(_connection, DYNAMIC_AREA_VIS_NAME, _dynamic_area_visualizers, handle, visualizer, layer=layer):
         return 0
     return 1
 
 @ClientAction('vdebugvis.dynamic_area.stop', command_type=sims4.commands.CommandType.Live)
 def debugvis_dynamic_area_stop(_connection=None):
-    sims4.commands.output('Dynamic Areas Visualization Disabled', _connection)
+    logger.info('Dynamic Areas Visualization Disabled')
     if not _stop_visualizer(_connection, DYNAMIC_AREA_VIS_NAME, _dynamic_area_visualizers, 0):
         return 0
     return 1
@@ -402,14 +423,14 @@ def debugvis_portals_start(portal_obj_id:int=0, there_id:int=0, back_id:int=0, _
         _stop_visualizer(_connection, PORTAL_VIS_NAME, _portal_visualizers, handle)
     layer = _create_layer(PORTAL_VIS_NAME, handle)
     visualizer = PortalVisualizer(layer, portal_obj_id=portal_obj_id, portal_id=portal_id)
-    sims4.commands.output('Portal Visualization Enabled', _connection)
+    logger.info('Portal Visualization Enabled')
     if not _start_visualizer(_connection, LOCATOR_VIS_NAME, _portal_visualizers, handle, visualizer, layer=layer):
         return 0
     return 1
 
 @ClientAction('vdebugvis.portals.stop', command_type=sims4.commands.CommandType.Live)
 def debugvis_portals_stop(portal_obj_id:int=0, _connection=None):
-    sims4.commands.output('Portal Visualization Disabled', _connection)
+    logger.info('Portal Visualization Disabled')
     if not portal_obj_id:
         handles = [handle for handle in _portal_visualizers]
         for handle in handles:
@@ -427,14 +448,14 @@ def debugvis_pond_start(draw_contours:bool=False, _connection=None):
     visualizer = PondVisualizer(layer, draw_contours=draw_contours)
     if not _start_visualizer(_connection, POND_VIS_NAME, _pond_visualizers, handle, visualizer, layer=layer):
         return 0
-    sims4.commands.output('Pond Visualization Enabled', _connection)
+    logger.info('Pond Visualization Enabled')
     return 1
 
 @ClientAction('vdebugvis.pond.stop', command_type=sims4.commands.CommandType.Live)
 def debugvis_pond_stop(_connection=None):
     if not _stop_visualizer(_connection, POND_VIS_NAME, _pond_visualizers, 0):
         return 0
-    sims4.commands.output('Pond Visualization Disabled', _connection)
+    logger.info('Pond Visualization Disabled')
     return 1
 
 SECTIONAL_SOFAS_VIS_NAME = 'sectional_sofas'
@@ -443,7 +464,7 @@ SECTIONAL_SOFAS_VIS_NAME = 'sectional_sofas'
 def debugvis_sectional_sofas_start(sofa_obj_param:RequiredTargetParam, piece_id:int=0, _connection=None):
     sofa_obj = sofa_obj_param.get_target()
     if sofa_obj is None:
-        sims4.commands.output(f'Object {sofa_obj_param.target_id} not found', _connection)
+        logger.info(f'Object {sofa_obj_param.target_id} not found')
         return 0
     else:
         handle = sofa_obj.id
@@ -451,14 +472,14 @@ def debugvis_sectional_sofas_start(sofa_obj_param:RequiredTargetParam, piece_id:
             _stop_visualizer(_connection, SECTIONAL_SOFAS_VIS_NAME, _sectional_sofa_visualizers, handle)
         layer = _create_layer(SECTIONAL_SOFAS_VIS_NAME, handle)
         visualizer = SectionalSofaVisualizer(layer, sofa_obj.id, sectional_sofa_piece_id=piece_id)
-        sims4.commands.output('Sectional Sofa Visualization Enabled', _connection)
+        logger.info('Sectional Sofa Visualization Enabled')
         if not _start_visualizer(_connection, SECTIONAL_SOFAS_VIS_NAME, _sectional_sofa_visualizers, handle, visualizer, layer=layer):
             return 0
     return 1
 
 @ClientAction('vdebugvis.sectional_sofas.stop', command_type=sims4.commands.CommandType.Live)
 def debugvis_sectional_sofas_stop(sofa_obj_id:int=0, _connection=None):
-    sims4.commands.output('Sectional Sofa Visualization Disabled', _connection)
+    logger.info('Sectional Sofa Visualization Disabled')
     if not sofa_obj_id:
         handles = [handle for handle in _sectional_sofa_visualizers]
         for handle in handles:
@@ -487,7 +508,7 @@ def debugvis_sim_visualization_start(flag:SimVisualizerFlag, opt_sim:OptionalTar
     if opt_sim:
         target_sim = get_optional_target(opt_sim, _connection)
         if not target_sim.is_sim:
-            sims4.commands.output('Not a Sim!: {0}'.format(opt_sim), _connection)
+            logger.info('Not a Sim!: {0}'.format(opt_sim))
             return 0
         sim = target_sim
     else:
@@ -516,7 +537,7 @@ def debugvis_sim_visualization_stop_all(flag:SimVisualizerFlag, _connection=None
 def debugvis_sim_visualization_stop(sim:RequiredTargetParam, _connection=None):
     sim = sim.get_target()
     if not sim.is_sim:
-        sims4.commands.output('Not a Sim!: {0}'.format(sim), _connection)
+        logger.info('Not a Sim!: {0}'.format(sim))
         return 0
     if sim.has_component(types.SIM_VISUALIZER_COMPONENT):
         sim.remove_component(types.SIM_VISUALIZER_COMPONENT)
@@ -715,7 +736,7 @@ def debugvis_social_clustering(detailed_obj_id:int=None, _connection=None):
             layer.set_color(Color.CYAN)
             layer.add_circle(cluster.position, 0.35)
             _draw_constraint(layer, cluster.constraint, Color.GREEN)
-    sims4.commands.client_cheat('vdebugvis.layer.enable social_clustering', _connection)
+    sims4.commands.client_cheat('debugvis.layer.enable social_clustering', _connection)
     return True
 
 @ClientAction('vdebugvis.look_ats.start')
@@ -737,16 +758,16 @@ def debugvis_los_disable(_connection=None):
 @ClientAction('vdebugvis.goals.enable')
 def debugvis_goals_enable(opt_sim:OptionalTargetParam=None, _connection=None):
     postures.posture_graph.enable_debug_goals_visualization = True
-    sims4.commands.client_cheat('vdebugvis.layer.enable goal_scoring', _connection)
-    sims4.commands.client_cheat('vdebugvis.layer.enable destination_cost', _connection)
+    sims4.commands.client_cheat('debugvis.layer.enable goal_scoring', _connection)
+    sims4.commands.client_cheat('debugvis.layer.enable destination_cost', _connection)
     _start_sim_visualizer(opt_sim, _connection, 'pathgoals', _path_goals_layer_visualizers, PathGoalVisualizer)
     _start_sim_visualizer(opt_sim, _connection, 'sim_trans_dests', _constraint_layer_visualizers, SimShortestTransitionPathVisualizer)
 
 @ClientAction('vdebugvis.goals.disable')
 def debugvis_goals_disable(opt_sim:OptionalTargetParam=None, _connection=None):
     postures.posture_graph.enable_debug_goals_visualization = False
-    sims4.commands.client_cheat('vdebugvis.layer.disable goal_scoring', _connection)
-    sims4.commands.client_cheat('vdebugvis.layer.disable destination_cost', _connection)
+    sims4.commands.client_cheat('debugvis.layer.disable goal_scoring', _connection)
+    sims4.commands.client_cheat('debugvis.layer.disable destination_cost', _connection)
     _stop_sim_visualizer(opt_sim, _connection, 'pathgoals', _path_goals_layer_visualizers)
     _stop_sim_visualizer(opt_sim, _connection, 'sim_trans_dests', _constraint_layer_visualizers)
 
@@ -951,7 +972,7 @@ def debugvis_ensembles_stop(_connection=None):
 
 @ClientAction('vdebugvis.polygon_intersection')
 def polygon_intersection(*args, _connection=None):
-    output = sims4.commands.Output(_connection)
+    output = logger.info
     total_string = ''.join(args)
     polygon_strs = find_substring_in_repr(total_string, POLYGON_STR, POLYGON_END_PARAM)
     if not polygon_strs:
@@ -1006,12 +1027,12 @@ def draw_path(path_id:int, route:PathParam, _connection=None):
 @ClientAction('vdebugvis.object_route.draw_additional_path')
 def draw_additional_path(path_id:int, route:PathParam, _connection=None):
     if route is None:
-        sims4.commands.output('Failed to parse PathParam.', _connection)
+        logger.info('Failed to parse PathParam.')
         return 0
     else:
         layer = _create_layer(OBJECT_ROUTE_VIS_NAME, path_id)
         visualizer = ObjectRouteVisualizer(layer, route=route)
-        sims4.commands.output('Object Route Visualization Enabled', _connection)
+        logger.info('Object Route Visualization Enabled')
         if not _start_visualizer(_connection, OBJECT_ROUTE_VIS_NAME, _object_route_visualizers, path_id, visualizer, layer=layer):
             return 0
     return 1
@@ -1083,10 +1104,10 @@ def _get_proximity_target(opt_obj, _connection):
     else:
         obj = get_optional_target(opt_obj, _connection)
     if obj is None:
-        sims4.commands.output('Target was not found.', _connection)
+        logger.info('Target was not found.')
         return
     elif not obj.has_component(types.PROXIMITY_COMPONENT):
-        sims4.commands.output('Target does not have a proximity component.', _connection)
+        logger.info('Target does not have a proximity component.')
         return
     return obj
 

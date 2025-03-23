@@ -12,12 +12,15 @@ if pathlib.Path(sys.executable).name.casefold() == "TS4_x64.exe".casefold():
     import sims4.core_services
     sims4.core_services.on_tick = main_thread.wrap_on_tick(sims4.core_services.on_tick)
 
+@vivlib2.log_exception_and_raise
 def block_debugvis_text():
-    import debugvis,sims4
+    import debugvis,sims4,vivlib2.debug_vis
     orig_get_layer = debugvis.get_layer
     class WrappedLayer:
-        def __init__(self, l):
+        def __init__(self, l, name=None):
             self.l = l
+            self.name = name
+
         def open(self):
             self.l.open()
         def clear(self):
@@ -34,18 +37,41 @@ def block_debugvis_text():
             pass
         def add_text_object(self, *args, **kwargs):
             pass
+        def _exec_client_cmd(self):
+          import vivlib2, vivlib2.main_thread
+          @vivlib2.log_exception_and_raise
+          def _exec_on_main_thread(self, cmd):
+              import services
+              client = services.get_first_client()
+              sims4.commands.client_cheat(cmd, client.id)
+          main_thread.run_on_main_thread(_exec_on_main_thread)
 
+        def client_enable(self):
+          if not self.Name:
+            raise Exception("Layer has no name attached")
+          self._exec_client_cmd('debugvis.layer.enable {0}'.format(self.name))
+
+        def client_disable(self):
+          if not self.Name:
+            raise Exception("Layer has no name attached")
+          self._exec_client_cmd('debugvis.layer.disable {0}'.format(self.name))
+
+    @vivlib2.log_exception_and_raise
     def get_wrapped_layer(*args, **kwargs):
+        # TODO: handle case where args is empty ...
         l = orig_get_layer(*args, **kwargs)
-        wl = WrappedLayer(l)
+        name = args[0]
+        wl = WrappedLayer(l, name=name)
         return wl
     debugvis.get_layer = get_wrapped_layer
 
     OrigContext = debugvis.Context
+    wrapped_layers = vivlib2.debug_vis.wrapped_layers()
     class WrappedContext(OrigContext):
         def __init__(self, name, preserve=False, color=sims4.color.Color.WHITE, altitude=0.05, zone_id=None, routing_surface=None):
             OrigContext.__init__(self, name, preserve, color, altitude, zone_id, routing_surface)
-            self.layer = WrappedLayer(self.layer)
+            #self.layer = WrappedLayer(self.layer, name)
+            wrapped_layers[name] = True
     debugvis.Context = WrappedContext
 
     def _undo():
