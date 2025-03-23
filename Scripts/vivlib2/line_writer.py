@@ -1,4 +1,3 @@
-from sims4.math import Vector3
 import typing
 
 class XY(typing.NamedTuple):
@@ -10,6 +9,7 @@ class Stroke(typing.NamedTuple):
     end: XY
 class LineWriter:
     def __init__(self, origin, scale, text):
+        from sims4.math import Vector3
         self.origin = origin
         self.step = Vector3(1, 0, 0)
         self.text = text
@@ -133,6 +133,7 @@ class LineWriter:
             ],
         }
     def write(self, drawlayer):
+        from sims4.math import Vector3
         line_origin = self.origin
         char_origin = self.origin
         for i in range(len(self.text)):
@@ -163,6 +164,7 @@ class LineWriter:
 
         
     def _write_char(self, drawlayer, c, char_origin):
+        from sims4.math import Vector3
         for s in self._char_to_strokes(c):
             start_vec3 = char_origin + (Vector3(s.start.x, s.start.y, 0) * self.scale)
             end_vec3 = char_origin + (Vector3(s.end.x, s.end.y, 0) * self.scale)

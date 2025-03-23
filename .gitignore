@@ -2,3 +2,6 @@
 *.pyd
 *.pyc
 *.ts4script
+__pycache__
+workdir
+staging
