@@ -31,7 +31,7 @@ class DrawLayer:
         self.main_thread.run_on_main_thread(_exec_on_main_thread)
 
 
-import typing.NamedTuple
+import typing
 class XZ(typing.NamedTuple):
     x: int
     z: int
@@ -40,6 +40,10 @@ class Bounds(typing.NamedTuple):
     min: XZ
     max: XZ
 
+
+# example
+# g = Grid(Bounds(XZ(0, 0), XZ(1000, 1000)), 20)
+# g.draw(dl3)
 class Grid:
     def __init__(self, bounds: Bounds, step: float):
         self.bounds = bounds
@@ -61,3 +65,60 @@ class Grid:
                     layer.add_point(point, routing_surface=None)
 
         drawlayer.draw_in_context(drawfn)
+    
+
+@vivlib2.lazy_global
+def get_last_pick_location():
+    import sims4.math
+    return sims4.math.Vector3(0,0,0)
+
+@vivlib2.lazy_global
+def get_last_pick_location_drawlayer():
+    return DrawLayer("pick")
+
+@vivlib2.lazy_global
+def get_last_pick_queue():
+    import queue
+    return queue.Queue(64)
+
+# factor this out so it's easy to monkeypatch & iterate on visuals
+def draw_pick_at_location(drawlayer: DrawLayer, location):
+    def drawpick(layer):
+        layer.add_point(location)
+    drawlayer.draw_in_context(drawpick)
+
+def start_draw_pick_locations():
+    import world.pick_tests
+    #world.pick_tests.PickTerrainTest.__call__ = orig
+    pick_drawlayer = get_last_pick_location_drawlayer()
+
+    import vivlib2
+    import vivlib.queues
+
+    @vivlib2.log_exception
+    def draw_pick_location_if_changed(pick_location):
+        lpl = get_last_pick_location()
+        if pick_location.x != lpl.x or pick_location.y != lpl.y or pick_location.z != lpl.z:
+            vivlib2.get_logger().info(f"pick location changed: {pick_location}")
+            # p(f"pick location changed {pick_location}\n")
+            lpl.x = pick_location.x
+            lpl.y = pick_location.y
+            lpl.z = pick_location.z
+            draw_pick_at_location(pick_drawlayer, pick_location)
+    vivlib.queues.service_queue_on_thread(get_last_pick_queue(), draw_pick_location_if_changed)
+
+    last_pick_queue = get_last_pick_queue()
+    orig = world.pick_tests.PickTerrainTest.__call__
+
+    def replacement_pick_terrain_test_call(*args, **kwargs):
+    #     if context['shift_held']:
+        #p(f"invoked: {self.terrain_location} {context.pick.location}\n")
+        try:
+            if 'context' in kwargs:
+                context = kwargs['context']
+                last_pick_queue.put_nowait(context.pick.location)
+        except:
+            pass
+
+        return orig(*args, **kwargs)
+    world.pick_tests.PickTerrainTest.__call__ = replacement_pick_terrain_test_call
