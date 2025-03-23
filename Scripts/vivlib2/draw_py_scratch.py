@@ -141,7 +141,7 @@ class LineWriter:
         char_origin = self.origin
         for i in range(len(self.text)):
             if self.text[i] == "\n":
-                line_origin = line_origin + (Vector3(0, -1, 0) * self.scale)
+                line_origin = line_origin + (Vector3(0, -1.2, 0) * self.scale)
                 char_origin = line_origin
                 continue
             self._write_char(drawlayer, self.text[i], char_origin)
@@ -180,7 +180,7 @@ def draw_pick_at_location(drawlayer, location):
         layer.add_point(location)
         layer.add_point(arrow_start)
         layer.add_segment_absolute(location, arrow_start)
-        lw = LineWriter(arrow_start, 0.5, 'x1\nyz420.69')
+        lw = LineWriter(arrow_start, 0.2, 'x{:.2f}\ny{:.2f}\nz{:.2f}'.format(location.x, location.y, location.z))
         lw.write(layer)
     drawlayer.draw_in_context(drawpick)
 
